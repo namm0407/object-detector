@@ -6,128 +6,148 @@
   <title>Image Object Search</title>
   <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/babel-standalone@7.22.5/babel.min.js"></script>
+  <script src="./babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
   <div id="root"></div>
   <script type="text/babel">
-    const { useState } = React;
-    const { createRoot } = ReactDOM;
+    console.log("1. Scripts loaded - React:", typeof React, "ReactDOM:", typeof ReactDOM, "Babel:", typeof Babel);
+    try {
+      const { useState } = React;
+      const { createRoot } = ReactDOM;
+      console.log("2. React hooks and createRoot accessed");
 
-    function App() {
-      const [image, setImage] = useState(null);
-      const [preview, setPreview] = useState(null);
-      const [resultImage, setResultImage] = useState(null);
-      const [caption, setCaption] = useState('');
-      const [searchTerm, setSearchTerm] = useState('');
-      const [message, setMessage] = useState('');
+      function App() {
+        console.log("3. App component called");
+        const [image, setImage] = useState(null);
+        const [preview, setPreview] = useState(null);
+        const [resultImage, setResultImage] = useState(null);
+        const [caption, setCaption] = useState('');
+        const [searchTerm, setSearchTerm] = useState('');
+        const [message, setMessage] = useState('');
 
-      const handleImageChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          setImage(file);
-          setPreview(URL.createObjectURL(file));
-          setResultImage(null);
-          setCaption('');
-          setMessage('');
-        }
-      };
+        const handleImageChange = (e) => {
+          console.log("4. Image selected");
+          const file = e.target.files[0];
+          if (file) {
+            setImage(file);
+            setPreview(URL.createObjectURL(file));
+            setResultImage(null);
+            setCaption('');
+            setMessage('');
+          }
+        };
 
-      const handleUpload = () => {
-        if (!image) {
-          setMessage('Please select an image first');
-          return;
-        }
-        const formData = new FormData();
-        formData.set('image', image);
-        fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.error) {
-              setMessage(data.error);
-            } else {
+        const handleUpload = () => {
+          console.log("5. Upload button clicked");
+          if (!image) {
+            setMessage('Please select an image first');
+            return;
+          }
+          const formData = new FormData();
+          formData.set('image', image);
+          fetch('http://localhost:5000/api/upload', {
+            method: 'POST',
+            body: formData,
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              console.log("6. Upload response:", data);
+              if (data.error) {
+                setMessage(data.error);
+              } else {
+                setResultImage(data.image_url);
+                setCaption(data.caption);
+                setMessage('');
+              }
+            })
+            .catch((err) => {
+              console.error("7. Upload error:", err);
+              setMessage('Error uploading image');
+            });
+        };
+
+        const handleSearch = () => {
+          console.log("8. Search button clicked, term:", searchTerm);
+          if (!searchTerm) {
+            setMessage('Please enter an object to search');
+            return;
+          }
+          fetch('http://localhost:5000/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_object: searchTerm }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              console.log("9. Search response:", data);
+              setMessage(data.message);
               setResultImage(data.image_url);
-              setCaption(data.caption);
-              setMessage('');
-            }
-          })
-          .catch(() => setMessage('Error uploading image'));
-      };
+            })
+            .catch((err) => {
+              console.error("10. Search error:", err);
+              setMessage('Error searching for object');
+            });
+        };
 
-      const handleSearch = () => {
-        if (!searchTerm) {
-          setMessage('Please enter an object to search');
-          return;
-        }
-        fetch('http://localhost:5000/api/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ target_object: searchTerm }),
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            setMessage(data.message);
-            setResultImage(data.image_url);
-          })
-          .catch(() => setMessage('Error searching for object'));
-      };
-
-      return (
-        <div className="container mx-auto p-4">
-          <h1 className="text-2xl font-bold mb-4">Image Object Search</h1>
-          <div className="mb-4">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="mb-2"
-            />
-            <button
-              onClick={handleUpload}
-              className="bg-blue-500 text-white p-2 rounded mr-2"
-            >
-              Upload Image
-            </button>
-          </div>
-          {preview && (
+        return (
+          <div className="container mx-auto p-4">
+            <h1 className="text-2xl font-bold mb-4">Image Object Search</h1>
             <div className="mb-4">
-              <h2 className="text-lg font-semibold">Preview:</h2>
-              <img src={preview} alt="Preview" className="max-w-xs" />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="mb-2"
+              />
+              <button
+                onClick={handleUpload}
+                className="bg-blue-500 text-white p-2 rounded mr-2"
+              >
+                Upload Image
+              </button>
             </div>
-          )}
-          <div className="mb-4">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Enter object to find (e.g., dog)"
-              className="border p-2 mr-2"
-            />
-            <button
-              onClick={handleSearch}
-              className="bg-green-500 text-white p-2 rounded"
-            >
-              Search Object
-            </button>
+            {preview && (
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold">Preview:</h2>
+                <img src={preview} alt="Preview" className="max-w-xs" />
+              </div>
+            )}
+            <div className="mb-4">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Enter object to find (e.g., dog)"
+                className="border p-2 mr-2"
+              />
+              <button
+                onClick={handleSearch}
+                className="bg-green-500 text-white p-2 rounded"
+              >
+                Search Object
+              </button>
+            </div>
+            {caption && <p className="mb-4">{caption}</p>}
+            {message && <p className="text-red-500 mb-4">{message}</p>}
+            {resultImage && (
+              <div>
+                <h2 className="text-lg font-semibold">Result:</h2>
+                <img src={resultImage} alt="Result" className="max-w-md" />
+              </div>
+            )}
           </div>
-          {caption && <p className="mb-4">{caption}</p>}
-          {message && <p className="text-red-500 mb-4">{message}</p>}
-          {resultImage && (
-            <div>
-              <h2 className="text-lg font-semibold">Result:</h2>
-              <img src={resultImage} alt="Result" className="max-w-md" />
-            </div>
-          )}
-        </div>
-      );
-    }
+        );
+      }
 
-    const root = createRoot(document.getElementById('root'));
-    root.render(<App />);
+      console.log("11. Creating root");
+      const root = createRoot(document.getElementById('root'));
+      console.log("12. Rendering App");
+      root.render(<App />);
+    } catch (err) {
+      console.error("13. Rendering error:", err);
+    }
   </script>
 </body>
 </html>
