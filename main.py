@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, render_template
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from ultralytics import YOLOWorld
 from PIL import Image, ImageDraw
@@ -8,20 +8,16 @@ import torch
 import io
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app)  # Enable CORS for React frontend
 
 # Initialize YOLO-World
-yolo_model = YOLOWorld('yolov8m-world.pt')  
+yolo_model = YOLOWorld('yolov8m-world.pt')
 
 # Ensure upload and output directories exist
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
-@app.route('/')
-def index():
-    return render_template('index.html') 
 
 @app.route('/api/upload', methods=['POST'])
 def upload_image():
