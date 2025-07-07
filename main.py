@@ -6,6 +6,7 @@ from collections import defaultdict
 import os
 import torch
 import io
+import re
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for React frontend
@@ -69,7 +70,11 @@ def search_object():
     target_object = data.get('target_object', '').lower()
     if not target_object:
         return jsonify({'error': 'No object specified'}), 400
-
+    
+    # Sanitize filename
+    safe_filename = re.sub(r'[^a-zA-Z0-9]', '_', target_object)
+    output_filename = f"{safe_filename}.jpg"
+    
     # Reload original image
     image_path = os.path.join(UPLOAD_FOLDER, 'uploaded_image.png')
     if not os.path.exists(image_path):
