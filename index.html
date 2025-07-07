@@ -40,33 +40,33 @@
         };
 
         const handleUpload = () => {
-          console.log("5. Upload button clicked");
-          if (!image) {
-            setMessage('Please select an image first');
-            return;
-          }
-          const formData = new FormData();
-          formData.set('image', image);
-          fetch('http://localhost:5000/api/upload', {
-            method: 'POST',
-            body: formData,
+        console.log("5. Upload button clicked");
+        if (!image) {
+          setMessage('Please select an image first');
+          return;
+        }
+        const formData = new FormData();
+        formData.set('image', image);
+        fetch('http://localhost:5000/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            console.log("6. Upload response:", data);
+            if (data.error) {
+              setMessage(data.error);
+            } else {
+              setResultImage(data.image_url ? `http://localhost:5000${data.image_url}` : null);
+              setCaption(data.caption);
+              setMessage('');
+            }
           })
-            .then((res) => res.json())
-            .then((data) => {
-              console.log("6. Upload response:", data);
-              if (data.error) {
-                setMessage(data.error);
-              } else {
-                setResultImage(data.image_url);
-                setCaption(data.caption);
-                setMessage('');
-              }
-            })
-            .catch((err) => {
-              console.error("7. Upload error:", err);
-              setMessage('Error uploading image');
-            });
-        };
+          .catch((err) => {
+            console.error("7. Upload error:", err);
+            setMessage('Failed to connect to the server. Please ensure the backend is running.');
+          });
+      };
 
         const handleSearch = () => {
           console.log("8. Search button clicked, term:", searchTerm);
@@ -83,7 +83,7 @@
             .then((data) => {
               console.log("9. Search response:", data);
               setMessage(data.message);
-              setResultImage(data.image_url);
+              setResultImage(data.image_url ? `http://localhost:5000${data.image_url}` : null);
             })
             .catch((err) => {
               console.error("10. Search error:", err);
@@ -103,12 +103,6 @@
                 onChange={handleImageChange}
                 className="mb-2"
               />
-              <button
-                onClick={handleUpload}
-                className="bg-blue-500 text-white p-2 rounded mr-2"
-              >
-                Upload Image
-              </button>
             </div>
             {preview && (
               <div className="mb-4">
