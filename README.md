@@ -1,8 +1,18 @@
 # object-detector
 
-* made with BLIP-2 & yolov8l-world
+## 🌟 Overview
+The object detector is built using BLIP-2 and YOLOv8l-world. This project was inspired by Agentic Object Detection developed by Andrew Ng, a pioneer in the field of artificial intelligence and the founder of LandingAI. I have taking this idea and create my own from scratch. 
 
-* need to press ctri + shift + p to switch to blip env
+Agentic Object Detection is an AI-driven technology that identifies and locates specific objects in images or videos using text prompts, without requiring extensive model training. This is a significant advancement from traditional object detection methods, as it leverages reasoning capabilities to provide more accurate and efficient detection. Andrew Ng, known for his work in advancing AI technologies, shared insights about this technology in various posts on X, particularly in the context of discussions about AI's impact on industries like healthcare, manufacturing, and security.
+
+
+## Demo video
+
+
+
+## Limitations
+This is a beginner-level project and currently exhibits lower accuracy due to its preliminary development stage. As an initial effort, the model relies on pretrained weights without extensive fine-tuning or optimization for the specific dataset, which limits its performance. Factors such as insufficiently diverse or poorly labeled training data, challenges in integrating BLIP-2’s vision-language outputs with YOLOv8’s detection pipeline, and difficulties in detecting small objects contribute to reduced accuracy.
+
 
 ## How to run this
 ### 1. Clone the repository
