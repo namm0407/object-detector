@@ -87,7 +87,7 @@
             })
             .catch((err) => {
               console.error("10. Search error:", err);
-              setMessage('Error searching for object');
+              setMessage('Failed to connect to the server. Please ensure the backend is running.');
             });
         };
 
@@ -98,6 +98,8 @@
               <input
                 type="file"
                 accept="image/*"
+                id="image-upload"
+                name="image-upload"
                 onChange={handleImageChange}
                 className="mb-2"
               />
@@ -110,13 +112,15 @@
             </div>
             {preview && (
               <div className="mb-4">
-                <h2 className="text-lg font-semibold">Preview:</h2>
+                <h2 className="text-lg font-semibold">The picture given:</h2>
                 <img src={preview} alt="Preview" className="max-w-xs" />
               </div>
             )}
             <div className="mb-4">
               <input
                 type="text"
+                id="search-term"
+                name="search-term"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Enter object to find (e.g., dog)"
