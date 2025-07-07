@@ -14,138 +14,162 @@
   <script type="text/babel">
     console.log("1. Scripts loaded - React:", typeof React, "ReactDOM:", typeof ReactDOM, "Babel:", typeof Babel);
     try {
-      const { useState } = React;
-      const { createRoot } = ReactDOM;
-      console.log("2. React hooks and createRoot accessed");
+        const { useState } = React;
+        const { createRoot } = ReactDOM;
+        console.log("2. React hooks and createRoot accessed");
 
-      function App() {
-        console.log("3. App component called");
-        const [image, setImage] = useState(null);
-        const [preview, setPreview] = useState(null);
-        const [resultImage, setResultImage] = useState(null);
-        const [caption, setCaption] = useState('');
-        const [searchTerm, setSearchTerm] = useState('');
-        const [message, setMessage] = useState('');
+        function App() {
+            console.log("3. App component called");
+            const [image, setImage] = useState(null);
+            const [preview, setPreview] = useState(null);
+            const [resultImage, setResultImage] = useState(null);
+            const [caption, setCaption] = useState('');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [message, setMessage] = useState('');
+            const [uploadSuccessful, setUploadSuccessful] = useState(false); // Track upload success
 
-        const handleImageChange = (e) => {
-          console.log("4. Image selected");
-          const file = e.target.files[0];
-          if (file) {
-            setImage(file);
-            setPreview(URL.createObjectURL(file));
-            setResultImage(null);
-            setCaption('');
-            setMessage('');
-          }
-        };
+            const handleImageChange = (e) => {
+                console.log("4. Image selected");
+                const file = e.target.files[0];
+                if (file) {
+                    setImage(file);
+                    setPreview(URL.createObjectURL(file));
+                    setResultImage(null);
+                    setCaption('');
+                    setMessage('');
+                    setUploadSuccessful(false); // Reset upload status
+                    handleUpload(file);
+                }
+            };
 
-        const handleUpload = () => {
-        console.log("5. Upload button clicked");
-        if (!image) {
-          setMessage('Please select an image first');
-          return;
+            const handleUpload = (file) => {
+                console.log("5. Upload initiated");
+                if (!file) {
+                    setMessage('Please select an image first');
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('image', file);
+                fetch('http://localhost:5000/api/upload', {
+                    method: 'POST',
+                    body: formData,
+                })
+                    .then((res) => {
+                        console.log("6. Upload response status:", res.status);
+                        return res.json();
+                    })
+                    .then((data) => {
+                        console.log("7. Upload response data:", data);
+                        if (data.error) {
+                            setMessage(data.error);
+                            setImage(null);
+                            setPreview(null);
+                            setUploadSuccessful(false);
+                        } else {
+                            setResultImage(data.image_url ? `http://localhost:5000${data.image_url}` : null);
+                            setCaption(data.caption);
+                            setMessage('');
+                            setUploadSuccessful(true); // Mark upload as successful
+                        }
+                    })
+                    .catch((err) => {
+                        console.error("8. Upload error:", err);
+                        setMessage('Failed to connect to the server. Please ensure the backend is running.');
+                        setImage(null);
+                        setPreview(null);
+                        setUploadSuccessful(false);
+                    });
+            };
+
+            const handleSearch = (event) => {
+                event.preventDefault();
+                console.log("9. Search button clicked, term:", searchTerm);
+                if (!searchTerm) {
+                    setMessage('Please enter an object to search');
+                    return;
+                }
+                if (!uploadSuccessful) {
+                    setMessage('Please upload an image first');
+                    return;
+                }
+                const payload = { target_object: searchTerm.toLowerCase() };
+                console.log("10. Sending search payload:", payload);
+                fetch('http://localhost:5000/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                })
+                    .then((res) => {
+                        console.log("11. Search response status:", res.status);
+                        return res.json();
+                    })
+                    .then((data) => {
+                        console.log("12. Search response data:", data);
+                        setMessage(data.message || data.error || 'Unknown response');
+                        setResultImage(data.image_url ? `http://localhost:5000${data.image_url}` : null);
+                    })
+                    .catch((err) => {
+                        console.error("13. Search error:", err);
+                        setMessage('Failed to connect to the server. Please ensure the backend is running.');
+                    });
+            };
+
+            return (
+                <div className="container mx-auto p-4">
+                    <h1 className="text-2xl font-bold mb-4">Image Object Search</h1>
+                    <div className="mb-4">
+                        <input
+                            type="file"
+                            accept="image/*"
+                            id="image-upload"
+                            name="image-upload"
+                            onChange={handleImageChange}
+                            className="mb-2"
+                        />
+                    </div>
+                    {preview && (
+                        <div className="mb-4">
+                            <h2 className="text-lg font-semibold">The picture given:</h2>
+                            <img src={preview} alt="Preview" className="max-w-xs" />
+                        </div>
+                    )}
+                    <div className="mb-4">
+                        <input
+                            type="text"
+                            id="search-term"
+                            name="search-term"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Enter object to find (e.g., dog)"
+                            className="border p-2 mr-2"
+                        />
+                        <button
+                            onClick={handleSearch}
+                            disabled={!uploadSuccessful}
+                            className={`p-2 rounded ${!uploadSuccessful ? 'bg-gray-500 cursor-not-allowed' : 'bg-green-500 text-white'}`}
+                        >
+                            Search Object
+                        </button>
+                    </div>
+                    {caption && <p className="mb-4">{caption}</p>}
+                    {message && <p className="text-red-500 mb-4">{message}</p>}
+                    {resultImage && (
+                        <div>
+                            <h2 className="text-lg font-semibold">Result:</h2>
+                            <img src={resultImage} alt="Result" className="max-w-md" />
+                        </div>
+                    )}
+                </div>
+            );
         }
-        const formData = new FormData();
-        formData.set('image', image);
-        fetch('http://localhost:5000/api/upload', {
-          method: 'POST',
-          body: formData,
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            console.log("6. Upload response:", data);
-            if (data.error) {
-              setMessage(data.error);
-            } else {
-              setResultImage(data.image_url ? `http://localhost:5000${data.image_url}` : null);
-              setCaption(data.caption);
-              setMessage('');
-            }
-          })
-          .catch((err) => {
-            console.error("7. Upload error:", err);
-            setMessage('Failed to connect to the server. Please ensure the backend is running.');
-          });
-      };
 
-        const handleSearch = () => {
-          console.log("8. Search button clicked, term:", searchTerm);
-          if (!searchTerm) {
-            setMessage('Please enter an object to search');
-            return;
-          }
-          fetch('http://localhost:5000/api/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target_object: searchTerm }),
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              console.log("9. Search response:", data);
-              setMessage(data.message);
-              setResultImage(data.image_url ? `http://localhost:5000${data.image_url}` : null);
-            })
-            .catch((err) => {
-              console.error("10. Search error:", err);
-              setMessage('Failed to connect to the server. Please ensure the backend is running.');
-            });
-        };
-
-        return (
-          <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-4">Image Object Search</h1>
-            <div className="mb-4">
-              <input
-                type="file"
-                accept="image/*"
-                id="image-upload"
-                name="image-upload"
-                onChange={handleImageChange}
-                className="mb-2"
-              />
-            </div>
-            {preview && (
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold">The picture given:</h2>
-                <img src={preview} alt="Preview" className="max-w-xs" />
-              </div>
-            )}
-            <div className="mb-4">
-              <input
-                type="text"
-                id="search-term"
-                name="search-term"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Enter object to find (e.g., dog)"
-                className="border p-2 mr-2"
-              />
-              <button
-                onClick={handleSearch}
-                className="bg-green-500 text-white p-2 rounded"
-              >
-                Search Object
-              </button>
-            </div>
-            {caption && <p className="mb-4">{caption}</p>}
-            {message && <p className="text-red-500 mb-4">{message}</p>}
-            {resultImage && (
-              <div>
-                <h2 className="text-lg font-semibold">Result:</h2>
-                <img src={resultImage} alt="Result" className="max-w-md" />
-              </div>
-            )}
-          </div>
-        );
-      }
-
-      console.log("11. Creating root");
-      const root = createRoot(document.getElementById('root'));
-      console.log("12. Rendering App");
-      root.render(<App />);
+        console.log("14. Creating root");
+        const root = createRoot(document.getElementById('root'));
+        console.log("15. Rendering App");
+        root.render(<App />);
     } catch (err) {
-      console.error("13. Rendering error:", err);
+        console.error("16. Rendering error:", err);
     }
-  </script>
+</script>
 </body>
 </html>
