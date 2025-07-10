@@ -1,162 +1,152 @@
-import cv2
-from ultralytics import YOLO
-import requests
-import json
-import numpy as np
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
+from ultralytics import YOLOWorld
+from PIL import Image, ImageDraw
+from collections import defaultdict
+from pathlib import Path
 import os
-from datetime import datetime
 import torch
+import io
+import re
 
-# Initialize YOLO-World and set device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = YOLO("yolov8s-world.pt").to(device)
+app = Flask(__name__)
+CORS(app)  # Enable CORS for React frontend
 
-# Define a comprehensive list of common objects for real-time detection
-common_classes = [
-    "cup", "bottle", "chair", "table", "book", "phone", "laptop", "pen", "paper", 
-    "keyboard", "mouse", "monitor", "desk", "lamp", "plate", "fork", "spoon", 
-    "knife", "bowl", "mug", "glass", "teapot", "clock", "vase", "plant", "shoe", 
-    "bag", "hat", "shirt", "pants", "jacket", "umbrella", "backpack", "wallet"
-]  # Add more classes as needed
-model.set_classes(common_classes)  # Set model to detect all common classes
+# Initialize YOLO-World
+yolo_model = YOLOWorld('yolov8m-world.pt')
 
-# xAI API setup
-API_KEY = os.getenv("XAI_API_KEY", "xai-1UYtI5dpr0ql2K8xkdy8rrYnxUYTyXDVor6yGXYNu00H1fMZtTuKJFk6lmbV5t0ub9VdGaekHg6JZucB")
-API_URL = "https://api.x.ai/v1/chat/completions"
+# Define OUTPUT_FOLDER as an absolute path
+BASE_DIR = Path(__file__).resolve().parent  # Directory of main.py
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+OUTPUT_FOLDER = os.path.join(BASE_DIR, 'outputs')
 
-def query_grok3(prompt):
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "grok-3",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 512
-    }
+# Ensure directories exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+# Debug the absolute path
+print(f"UPLOAD_FOLDER absolute path: {os.path.abspath(UPLOAD_FOLDER)}")
+print(f"OUTPUT_FOLDER absolute path: {os.path.abspath(OUTPUT_FOLDER)}")
+
+@app.route('/api/upload', methods=['POST'])
+def upload_image():
+    print("Received upload request")  # Debug start of upload
+    if 'image' not in request.files:
+        print("Error: No image provided in request")
+        return jsonify({'error': 'No image provided'}), 400
+    file = request.files['image']
+    if file.filename == '':
+        print("Error: No file selected")
+        return jsonify({'error': 'No file selected'}), 400
+
+    # Save uploaded image
+    image_path = os.path.join(UPLOAD_FOLDER, 'uploaded_image.png')
+    print(f"Attempting to save image at: {os.path.abspath(image_path)}")  # Debug save path
     try:
-        response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
-    except requests.exceptions.RequestException as e:
-        return f"Error: {e}"
+        file.save(image_path)
+        print(f"Image saved successfully at: {os.path.abspath(image_path)}")
+    except Exception as e:
+        print(f"Error saving image: {str(e)}")
+        return jsonify({'error': f'Failed to save image: {str(e)}'}), 500
 
-# Open camera
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    print("Error: Could not open camera.")
-    exit()
+    if not os.path.exists(image_path):
+        print(f"Error: Image not found after saving at {os.path.abspath(image_path)}")
+        return jsonify({'error': 'Failed to save uploaded image'}), 500
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+    # Process image with YOLO
+    image = Image.open(image_path).convert("RGB")
+    results = yolo_model.predict(image)
+    detections = results[0].boxes.data.tolist()
 
-    # Preprocess frame
-    frame_resized = cv2.resize(frame, (640, 640))
-    frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
+    # Count detected objects for caption
+    object_counts = defaultdict(int)
+    for det in detections:
+        _, _, _, _, conf, cls_id = det
+        if conf > 0.5:
+            object_counts[yolo_model.names[int(cls_id)]] += 1
 
-    # Run YOLO-World inference
-    results = model.predict(frame_rgb, conf=0.5, device=device)
-    boxes = results[0].boxes.xyxy
-    scores = results[0].boxes.conf
-    labels = results[0].boxes.cls
+    # Generate caption
+    caption = "Detected: " + ", ".join([f"{count} {obj}" for obj, count in object_counts.items()]) if object_counts else "No objects detected"
 
-    # Extract detections
-    detections = []
-    for box, score, label in zip(boxes, scores, labels):
-        class_name = common_classes[int(label)]  # Map label index to class name
-        x1, y1, x2, y2 = map(int, box)
-        detections.append(f"{class_name} detected at coordinates ({x1},{y1},{x2},{y2}) with confidence {score:.2f}")
-    detection_text = "; ".join(detections) if detections else "No objects detected."
+    # Save annotated image with all detections
+    draw = ImageDraw.Draw(image)
+    for det in detections:
+        x1, y1, x2, y2, conf, cls_id = det
+        if conf > 0.5:
+            label = f"{yolo_model.names[int(cls_id)]} {conf:.2f}"
+            draw.rectangle([x1, y1, x2, y2], outline="red", width=2)
+            draw.text((x1, y1), label, fill="red")
+    output_path = os.path.join(OUTPUT_FOLDER, 'annotated_image.jpg')
+    try:
+        image.save(output_path)
+        print(f"Annotated image saved at: {os.path.abspath(output_path)}")
+    except Exception as e:
+        print(f"Error saving annotated image: {str(e)}")
+        return jsonify({'error': f'Failed to save annotated image: {str(e)}'}), 500
 
-    # Query Grok 3
-    prompt = f"Describe the scene where: {detection_text}. Provide a human-like description of the objects detected."
-    grok_response = query_grok3(prompt)
+    return jsonify({
+        'caption': caption,
+        'image_url': '/api/image/annotated_image.jpg',
+        'detections': [{'class': yolo_model.names[int(cls_id)], 'conf': conf, 'bbox': [x1, y1, x2, y2]} for x1, y1, x2, y2, conf, cls_id in detections if conf > 0.5]
+    })
 
-    # Visualize detections
-    for box, score, label in zip(boxes, scores, labels):
-        class_name = common_classes[int(label)]
-        x1, y1, x2, y2 = map(int, box)
-        cv2.rectangle(frame_resized, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(frame_resized, f"{class_name}: {score:.2f}", (x1, y1-10), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+@app.route('/api/search', methods=['POST'])
+def search_object():
+    data = request.get_json()
+    print(f"Received data: {data}")  # Debug incoming JSON
+    target_object = data.get('target_object', '').lower()
+    if not target_object:
+        print("Error: No target_object specified")  # Debug specific error
+        return jsonify({'error': 'No object specified'}), 400
+    
+    # Sanitize filename
+    safe_filename = re.sub(r'[^a-zA-Z0-9]', '_', target_object)
+    output_filename = f"{safe_filename}.jpg"
+    
+    # Reload original image
+    image_path = os.path.join(UPLOAD_FOLDER, 'uploaded_image.png')
+    if not os.path.exists(image_path):
+        print(f"Error: Image not found at {image_path}")  # Debug image path
+        return jsonify({'error': 'No image uploaded'}), 400
 
-    # Display Grok response
-    cv2.putText(frame_resized, grok_response[:50] + "...", (10, 30), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-    cv2.imshow("Real-Time Detection", frame_resized)
-    print("Grok 3 Response:", grok_response)
+    image = Image.open(image_path).convert("RGB")
+    results = yolo_model.predict(image)
+    detections = results[0].boxes.data.tolist()
 
-    # Capture image on 'Enter' key press (key code 13)
-    key = cv2.waitKey(1) & 0xFF
-    if key == 13:  # Enter key
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"capture_{timestamp}.jpg"
-        cv2.imwrite(filename, frame_resized)
-        print(f"Image saved as {filename}")
+    # Draw boxes for target object
+    draw = ImageDraw.Draw(image)
+    found = False
+    for det in detections:
+        x1, y1, x2, y2, conf, cls_id = det
+        if conf > 0.5 and yolo_model.names[int(cls_id)].lower() == target_object:
+            label = f"{yolo_model.names[int(cls_id)]} {conf:.2f}"
+            draw.rectangle([x1, y1, x2, y2], outline="red", width=2)
+            draw.text((x1, y1), label, fill="red")
+            found = True
 
-        # Pause and prompt for object to detect
-        cap.release()
-        cv2.destroyAllWindows()
-        object_to_detect = input("Enter the object you want to detect (e.g., cup, bottle): ").strip()
+    # Save image with sanitized filename
+    output_path = os.path.join(OUTPUT_FOLDER, output_filename)
+    image.save(output_path)
+    print(f"Image saved at: {os.path.abspath(output_path)}")
+    if not os.path.exists(output_path):
+        print(f"Error: File {os.path.abspath(output_path)} was not created")
+        return jsonify({'error': 'Failed to save image'}), 500
 
-        # Set model to detect only the user-specified object
-        try:
-            model.set_classes([object_to_detect])
-        except RuntimeError as e:
-            print(f"Error setting classes: {e}")
-            break
+    return jsonify({
+        'found': found,
+        'image_url': f'/api/image/{output_filename}' if found else None,
+        'message': f"{target_object} {'found' if found else 'not found'} in the image"
+    })
 
-        # Load and process the captured image
-        captured_image = cv2.imread(filename)
-        if captured_image is None:
-            print(f"Error: Could not load image {filename}.")
-            break
-        captured_resized = cv2.resize(captured_image, (640, 640))
-        captured_rgb = cv2.cvtColor(captured_resized, cv2.COLOR_BGR2RGB)
+@app.route('/api/image/<filename>', methods=['GET'])
+def serve_image(filename):
+    file_path = os.path.join(OUTPUT_FOLDER, filename)
+    absolute_file_path = os.path.abspath(file_path)
+    print(f"Attempting to serve file: {absolute_file_path}")
+    if not os.path.exists(absolute_file_path):
+        print(f"File not found: {absolute_file_path}")
+        return jsonify({'error': f'Image {filename} not found'}), 404
+    return send_file(absolute_file_path)
 
-        # Run YOLO-World inference on captured image
-        results = model.predict(captured_rgb, conf=0.5, device=device)
-        boxes = results[0].boxes.xyxy
-        scores = results[0].boxes.conf
-        labels = results[0].boxes.cls
-
-        # Extract detections for the specified object only
-        detections = []
-        for box, score, label in zip(boxes, scores, labels):
-            x1, y1, x2, y2 = map(int, box)
-            detections.append(f"{object_to_detect} detected at coordinates ({x1},{y1},{x2},{y2}) with confidence {score:.2f}")
-        detection_text = "; ".join(detections) if detections else f"No {object_to_detect}s detected."
-
-        # Query Grok 3 for the captured image
-        prompt = f"Describe the scene where: {detection_text}. Provide a human-like description or answer questions about the {object_to_detect}."
-        grok_response = query_grok3(prompt)
-
-        # Visualize only the specified object detections on captured image
-        for box, score, label in zip(boxes, scores, labels):
-            x1, y1, x2, y2 = map(int, box)
-            cv2.rectangle(captured_resized, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(captured_resized, f"{object_to_detect}: {score:.2f}", (x1, y1-10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-        # Save the final image with only the specified object highlighted
-        final_filename = f"detected_{object_to_detect}_{timestamp}.jpg"
-        cv2.imwrite(final_filename, captured_resized)
-        print(f"Final image saved as {final_filename}")
-
-        # Display the final image
-        cv2.imshow(f"{object_to_detect} Detection on Captured Image", captured_resized)
-        print("Grok 3 Response for Captured Image:", grok_response)
-
-        # Wait for user to close the image window and exit
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        break
-
-    if key == ord("q"):
-        break
-
-# Cleanup
-cap.release()
-cv2.destroyAllWindows()
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
