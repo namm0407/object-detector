@@ -82,7 +82,7 @@ Save the file as babel.min.js in
 #### To run the backend
 `python main.py`
 
-#### To run the frontend
+#### To run the frontend (Open a second PowerShell or Command Prompt window)
 `python -m http.server 8000`
 
 type `http://localhost:8000/index.html` in browser
