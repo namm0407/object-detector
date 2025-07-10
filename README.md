@@ -61,7 +61,7 @@ from ultralytics import YOLO
 model = YOLO('yolov8l-world.pt')
 ```
 
-#### For BLIP-2 Model
+#### For BLIP-2 Model (no need)
 ```bash
 import requests
 from PIL import Image
@@ -83,6 +83,12 @@ Save the file as babel.min.js in
 `python main.py`
 
 #### To run the frontend
+`python -m http.server 8000`
+
+type `http://localhost:8000/index.html` in browser
+
+#### no need
+
 `cd "C:\your\path\object detector\frontend"`
 
 e.g.
