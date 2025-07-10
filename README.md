@@ -44,6 +44,10 @@ Open terminal and type
 
 `pip install Pillow`
 
+`pip install flask`
+
+`pip install flask-cors`
+
 ### 4. Install the models (if you haven't already)
 
 #### For YOLO-World Model (yolov8l-world)
