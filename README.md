@@ -13,6 +13,7 @@ Agentic Object Detection is an AI-driven technology that identifies and locates 
 
 ## Demo video
 
+https://drive.google.com/file/d/1J6yX392Kod1KflAwHR6tX1_WS7zenUL-/view?usp=sharing
 
 ## Limitations
 This is a beginner-level project and currently exhibits lower accuracy due to its preliminary development stage. As an initial effort, the model relies on pretrained weights without extensive fine-tuning or optimization for the specific dataset, which limits its performance. Factors such as insufficiently diverse or poorly labeled training data, challenges in integrating BLIP-2’s vision-language outputs with YOLOv8’s detection pipeline, and difficulties in detecting small objects contribute to reduced accuracy.
